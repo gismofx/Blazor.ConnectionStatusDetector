@@ -1,4 +1,4 @@
-﻿@inject IConnectionStatusDetectorService ConnectionStatus
+@inject IConnectionStatusDetectorService ConnectionStatus
 @implements IDisposable
 
 @if (ConnectionStatus.IsOnline)
@@ -17,6 +17,16 @@ else
     [Parameter]
     public RenderFragment? Offline { get; set; }
 
-    protected override void OnInitialized() => ConnectionStatus.ConnectionStatusChanged += (_, _) => StateHasChanged();
-    public void Dispose() => ConnectionStatus.ConnectionStatusChanged -= (_, _) => StateHasChanged();
+    // Store the delegate so we can actually unsubscribe the same instance.
+    // The original code used inline lambdas which created new delegate instances
+    // on each call, making -= a no-op and leaking the subscription.
+    private EventHandler<bool> _handler = default!;
+
+    protected override void OnInitialized()
+    {
+        _handler = (_, _) => InvokeAsync(StateHasChanged);
+        ConnectionStatus.ConnectionStatusChanged += _handler;
+    }
+
+    public void Dispose() => ConnectionStatus.ConnectionStatusChanged -= _handler;
 }
